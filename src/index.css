@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-gray-400 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-600;
+}
+
+/* Custom animations */
+@keyframes shimmer {
+  0% {
+    background-position: -468px 0;
+  }
+  100% {
+    background-position: 468px 0;
+  }
+}
+
+.shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+  background: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+  background-size: 800px 104px;
+}
+
+/* Glass morphism effect */
+.glass {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background-color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(209, 213, 219, 0.3);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Custom button styles */
+.btn-primary {
+  @apply bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-2 px-4 rounded-lg shadow-lg transform transition-all duration-200 hover:scale-105 hover:shadow-xl;
+}
+
+.btn-secondary {
+  @apply bg-white border-2 border-gray-300 hover:border-blue-500 text-gray-700 hover:text-blue-600 font-semibold py-2 px-4 rounded-lg transition-all duration-200;
+}
+
+/* File upload area */
+.file-upload-area {
+  @apply border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-8 text-center transition-all duration-200 cursor-pointer;
+}
+
+.file-upload-area.dragover {
+  @apply border-blue-500 bg-blue-50;
+}
+
+/* Progress bar */
+.progress-bar {
+  @apply h-2 bg-gray-200 rounded-full overflow-hidden;
+}
+
+.progress-fill {
+  @apply h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-300 ease-out;
+}
+
+/* Card styles */
+.card {
+  @apply bg-white rounded-xl shadow-lg border border-gray-200 p-6 transition-all duration-200 hover:shadow-xl;
+}
+
+.card-dark {
+  @apply bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6 transition-all duration-200 hover:shadow-xl;
+}
+
+/* Rating stars */
+.star {
+  @apply w-5 h-5 transition-colors duration-200 cursor-pointer;
+}
+
+.star.filled {
+  @apply text-yellow-400;
+}
+
+.star.empty {
+  @apply text-gray-300;
+}
+
+/* Loading spinner */
+.spinner {
+  @apply animate-spin rounded-full border-4 border-gray-200 border-t-blue-500;
+}
+
+/* Responsive text */
+@media (max-width: 640px) {
+  .responsive-text {
+    font-size: 0.875rem;
+  }
+}
+
+/* Focus styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+}
+
+/* Custom utilities */
+.text-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
