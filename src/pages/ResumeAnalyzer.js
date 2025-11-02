@@ -1,9 +1,9 @@
 import { AlertTriangle, BarChart3, Download, FileText, Key, Lightbulb, Target, TrendingUp } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import FileUpload from '../components/FileUpload';
 import { useApiKey } from '../context/ApiKeyContext';
-import { DocumentProcessor } from '../services/documentProcessor';
+import BackendDocumentProcessor from '../services/backendDocumentProcessor';
 import { ResumeAnalyzer as ResumeAnalyzerService } from '../services/resumeAnalyzer';
 import { TextFormatter } from '../utils/textFormatter';
 
@@ -14,6 +14,47 @@ const ResumeAnalyzer = () => {
   const [processing, setProcessing] = useState(false);
   const [analysisResults, setAnalysisResults] = useState(null);
   const [activeTab, setActiveTab] = useState('summary');
+  const [backendStatus, setBackendStatus] = useState({ available: false, checking: true });
+  const [processingMethod] = useState('auto'); // auto, backend, frontend (setter removed as it's not used)
+
+  // Initialize backend processor (memoized to prevent re-creation on every render)
+  const backendProcessor = useMemo(() => new BackendDocumentProcessor(), []);
+
+  // Backend health check function (memoized to prevent recreating)
+  const checkBackendHealth = useMemo(() => async () => {
+    console.log('🔍 Checking backend server availability...');
+    setBackendStatus({ available: false, checking: true });
+    
+    try {
+      const healthCheck = await backendProcessor.checkBackendHealth();
+      console.log('🔍 Backend health check result:', healthCheck);
+      
+      // Ensure state update happens
+      setBackendStatus({ 
+        available: healthCheck.available, 
+        checking: false,
+        error: healthCheck.error,
+        data: healthCheck.data
+      });
+      
+      if (healthCheck.available) {
+        console.log('✅ Backend server is available - ready for high-performance processing');
+        toast.success('Backend server connected! Ready for fast processing.', { duration: 2000, id: 'backend-status' });
+      } else {
+        console.error('❌ Backend server required but not available:', healthCheck.error);
+        toast.error('Backend server required! Run: cd backend && npm start', { duration: 5000, id: 'backend-status' });
+      }
+    } catch (error) {
+      console.error('❌ Backend health check failed:', error);
+      setBackendStatus({ available: false, checking: false, error: error.message });
+      toast.error('Backend server check failed! Please ensure server is running.', { duration: 5000, id: 'backend-status' });
+    }
+  }, [backendProcessor]);
+
+  // Check backend availability on component mount
+  useEffect(() => {
+    checkBackendHealth();
+  }, [checkBackendHealth]); // Added backendProcessor to dependencies
 
   const handleApiKeySubmit = (e) => {
     e.preventDefault();
@@ -40,6 +81,14 @@ const ResumeAnalyzer = () => {
     }
   };
 
+  // Simple file type detection
+  const getFileType = (file) => {
+    const fileName = file.name.toLowerCase();
+    if (fileName.endsWith('.pdf')) return 'pdf';
+    if (fileName.endsWith('.docx') || fileName.endsWith('.doc')) return 'docx';
+    return 'unknown';
+  };
+
   const handleAnalyze = async () => {
     if (!file || !hasGeminiKey) {
       toast.error('Please upload a file and provide a valid API key');
@@ -51,12 +100,42 @@ const ResumeAnalyzer = () => {
 
     try {
       // Get file type for user feedback
-      const fileType = DocumentProcessor.getFileType(file);
+      const fileType = getFileType(file);
       const fileTypeText = fileType.toUpperCase();
       
-      // Step 1: Process Document (PDF or DOCX)
-      toast.loading(`Extracting text from ${fileTypeText}...`, { id: loadingToast });
-      const documentData = await DocumentProcessor.processResumeDocument(file);
+      let documentData;
+      
+      // Step 1: Process Document (Backend only - no fallback to frontend)
+      toast.loading(`Processing ${fileTypeText} on server...`, { id: loadingToast });
+      console.log('🚀 Using backend processing - no frontend fallback to ensure optimal performance');
+      
+      // Check backend availability first
+      if (!backendStatus.available) {
+        const healthCheck = await backendProcessor.checkBackendHealth();
+        if (!healthCheck.available) {
+          throw new Error('Backend server is not available. Please ensure the backend is running on port 5000.');
+        }
+      }
+      
+      const backendResult = await backendProcessor.processDocumentBackendOnly(file, {
+        chunkSize: 700,
+        overlap: 200
+      });
+      
+      if (!backendResult.success) {
+        throw new Error(backendResult.error || 'Backend processing failed. Please try again or restart the backend server.');
+      }
+      
+      // Transform backend result to match frontend expectations
+      documentData = {
+        text: backendResult.text,
+        chunks: backendResult.chunks,
+        metadata: backendResult.metadata,
+        analysis: backendResult.metadata.analysis
+      };
+      
+      console.log('✅ Backend processing successful - no browser-side processing used');
+      toast.loading(`Server processing complete for ${fileTypeText}...`, { id: loadingToast });
       
       // Step 2: Analyze with Gemini
       toast.loading('Performing AI analysis...', { id: loadingToast });
@@ -71,7 +150,13 @@ const ResumeAnalyzer = () => {
         ...analysis,
         documentData,
         fileName: file.name,
-        fileType: fileType
+        fileType: fileType,
+        processingInfo: {
+          method: documentData.metadata?.processingMethod || 'unknown',
+          backendAvailable: backendStatus.available,
+          totalChunks: documentData.chunks?.length || 0,
+          wordCount: documentData.analysis?.wordCount || documentData.metadata?.analysis?.wordCount || 0
+        }
       };
       
       setAnalysisResults(results);
@@ -79,7 +164,16 @@ const ResumeAnalyzer = () => {
       
     } catch (error) {
       console.error('Analysis error:', error);
-      toast.error(error.message || 'Failed to analyze resume', { id: loadingToast });
+      
+      // Provide specific guidance for backend-related errors
+      if (error.message.includes('Backend server') || error.message.includes('port 5000')) {
+        toast.error(
+          'Backend server required! Please start the backend server: cd backend && npm start', 
+          { id: loadingToast, duration: 6000 }
+        );
+      } else {
+        toast.error(error.message || 'Failed to analyze resume', { id: loadingToast });
+      }
     } finally {
       setProcessing(false);
     }
@@ -242,7 +336,7 @@ Generated by AI Resume Analyzer - GenAI Hackathon 2025
           </p>
           
           {/* Status Indicators */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
             <div className={`flex items-center space-x-3 p-4 rounded-lg border ${
               hasGeminiKey 
                 ? 'bg-green-50 border-green-200' 
@@ -262,6 +356,54 @@ Generated by AI Resume Analyzer - GenAI Hackathon 2025
                 </div>
                 <p className="text-xs text-gray-600">
                   {hasGeminiKey ? (isFromEnv ? 'Environment Variable' : 'Locally Stored') : 'Not Configured'}
+                </p>
+              </div>
+            </div>
+            
+            <div className={`flex items-center space-x-3 p-4 rounded-lg border ${
+              backendStatus.checking 
+                ? 'bg-yellow-50 border-yellow-200' :
+              backendStatus.available 
+                ? 'bg-green-50 border-green-200' 
+                : 'bg-red-50 border-red-200'
+            }`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                backendStatus.checking 
+                  ? 'bg-yellow-100' :
+                backendStatus.available 
+                  ? 'bg-green-100' 
+                  : 'bg-red-100'
+              }`}>
+                {backendStatus.checking ? (
+                  <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <svg className={`w-4 h-4 ${backendStatus.available ? 'text-green-600' : 'text-red-600'}`} fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium text-gray-900">Backend Server</span>
+                  {backendStatus.available && <span className="text-green-500 text-xs">✓</span>}
+                  {!backendStatus.available && !backendStatus.checking && <span className="text-red-500 text-xs">✗</span>}
+                  <span className={`text-xs px-2 py-0.5 rounded ${
+                    backendStatus.available ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                  }`}>
+                    {backendStatus.available ? 'CONNECTED' : 'REQUIRED'}
+                  </span>
+                  {!backendStatus.checking && (
+                    <button
+                      onClick={checkBackendHealth}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Refresh
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-600">
+                  {backendStatus.checking ? 'Checking server...' : 
+                   backendStatus.available ? 'Server Online' : 'Server Offline - Start backend!'}
                 </p>
               </div>
             </div>
@@ -354,23 +496,116 @@ Generated by AI Resume Analyzer - GenAI Hackathon 2025
             isProcessing={processing} 
           />
           
+          
           {file && !processing && (
             <div className="mt-6 flex justify-center">
               <button
                 onClick={handleAnalyze}
-                disabled={processing || !hasGeminiKey}
-                className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-8 py-3 rounded-lg disabled:cursor-not-allowed transition-colors duration-200 flex items-center space-x-3 font-medium shadow-sm hover:shadow-md"
+                disabled={processing || !hasGeminiKey || !backendStatus.available}
+                className={`px-8 py-3 rounded-lg transition-colors duration-200 flex items-center space-x-3 font-medium shadow-sm hover:shadow-md ${
+                  !backendStatus.available 
+                    ? 'bg-red-400 text-white cursor-not-allowed' 
+                    : processing || !hasGeminiKey
+                    ? 'bg-gray-400 text-white cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
+                title={
+                  !backendStatus.available 
+                    ? 'Backend server required - please start the server first' 
+                    : !hasGeminiKey 
+                    ? 'API key required' 
+                    : 'Analyze resume using backend processing'
+                }
               >
                 <BarChart3 className="w-5 h-5" />
-                <span>Analyze Resume</span>
+                <span>
+                  {!backendStatus.available 
+                    ? 'Backend Server Required' 
+                    : 'Analyze Resume'}
+                </span>
               </button>
             </div>
           )}
         </div>
 
+        {/* Backend Required Banner */}
+        {!backendStatus.checking && !backendStatus.available && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-6 mb-8 rounded-r-lg">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Backend Server Required</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p className="mb-2">This application now requires the backend server for optimal performance and to eliminate browser memory issues.</p>
+                  <div className="bg-red-100 p-3 rounded border border-red-200">
+                    <p className="font-mono text-sm">
+                      <strong>1.</strong> Open terminal in project directory<br/>
+                      <strong>2.</strong> Run: <code className="bg-red-200 px-1 rounded">cd backend</code><br/>
+                      <strong>3.</strong> Run: <code className="bg-red-200 px-1 rounded">npm start</code><br/>
+                      <strong>4.</strong> Refresh this page
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Results Section */}
         {analysisResults && (
           <div className="space-y-8">
+            {/* Processing Info Banner */}
+            {analysisResults.processingInfo && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      analysisResults.processingInfo.method === 'backend' ? 'bg-green-100' : 
+                      analysisResults.processingInfo.method === 'frontend-fallback' ? 'bg-yellow-100' : 
+                      'bg-blue-100'
+                    }`}>
+                      <svg className={`w-4 h-4 ${
+                        analysisResults.processingInfo.method === 'backend' ? 'text-green-600' : 
+                        analysisResults.processingInfo.method === 'frontend-fallback' ? 'text-yellow-600' : 
+                        'text-blue-600'
+                      }`} fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001 1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-900">
+                        Processing Method: {
+                          analysisResults.processingInfo.method === 'backend' ? '🚀 Server-side Processing' :
+                          analysisResults.processingInfo.method === 'frontend-fallback' ? '⚠️ Frontend Fallback' :
+                          '🔧 Frontend Processing'
+                        }
+                      </h4>
+                      <p className="text-xs text-gray-600">
+                        {analysisResults.processingInfo.totalChunks} chunks • {analysisResults.processingInfo.wordCount.toLocaleString()} words
+                        {analysisResults.processingInfo.method === 'backend' && ' • Optimized server processing'}
+                        {analysisResults.processingInfo.method === 'frontend-fallback' && ' • Backend unavailable, used browser processing'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      analysisResults.processingInfo.method === 'backend' ? 'bg-green-100 text-green-800' : 
+                      analysisResults.processingInfo.method === 'frontend-fallback' ? 'bg-yellow-100 text-yellow-800' : 
+                      'bg-blue-100 text-blue-800'
+                    }`}>
+                      {analysisResults.processingInfo.method === 'backend' ? 'Server' :
+                       analysisResults.processingInfo.method === 'frontend-fallback' ? 'Fallback' : 
+                       'Browser'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             {/* Analysis Overview */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200">
               <div className="flex justify-between items-center p-6 border-b border-gray-200">

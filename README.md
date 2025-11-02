@@ -4,25 +4,12 @@
 
 A modern React-based application that provides comprehensive resume analysis using Google Gemini AI. The application processes PDF and DOCX resumes to deliver detailed insights, scoring, and career recommendations with a beautiful, responsive interface.
 
-<br />
-
-**Table of Contents**
-
-1. [Features](#features)
-2. [Technology Stack](#technology-stack)
-3. [Installation](#installation)
-4. [Usage](#usage)
-5. [Project Structure](#project-structure)
-6. [API Configuration](#api-configuration)
-7. [Contributing](#contributing)
-8. [License](#license)
-
-<br />
-
 ## **Features**
 
 ### 🎯 **Resume Analysis Engine**
-- **Multi-format Processing**: Supports PDF and DOCX file uploads
+- **Multi-format Processing**: Supports PDF and DOCX file uploads (up to 50MB)
+- **Dual Processing Modes**: Backend server processing with frontend fallback
+- **Smart Performance**: Server-side processing eliminates browser memory issues
 - **Google Gemini Integration**: Advanced AI analysis using Gemini 1.5 Flash
 - **Comprehensive Scoring**: 10-point rating system across 5 key criteria:
   - Content Quality & Clarity
@@ -55,6 +42,15 @@ A modern React-based application that provides comprehensive resume analysis usi
 
 ## **Technology Stack**
 
+### **Backend API Server**
+- **Express.js 4** - Fast, minimal web framework for Node.js
+- **Node.js** - Server-side JavaScript runtime
+- **PDF-Parse** - Server-side PDF text extraction (faster than browser)
+- **Mammoth.js** - Server-side DOCX processing with better memory handling
+- **Multer** - Secure file upload middleware
+- **CORS** - Cross-origin resource sharing for frontend integration
+- **Smart Chunking** - Intelligent text splitting for AI processing
+
 ### **Frontend Framework**
 - **React 18** - Modern functional components with hooks
 - **JavaScript ES6+** - Latest JavaScript features and async/await patterns
@@ -68,8 +64,7 @@ A modern React-based application that provides comprehensive resume analysis usi
 
 ### **AI & Document Processing**
 - **Google Generative AI (@google/generative-ai)** - Gemini 1.5 Flash model integration
-- **PDF.js (pdfjs-dist)** - Client-side PDF text extraction
-- **Mammoth.js** - Microsoft Word (.docx) document processing
+- **Dual Processing Architecture** - Backend server with frontend fallback
 - **Custom Vector Service** - Text similarity search and analysis
 
 ### **File Handling & Validation**
@@ -96,7 +91,7 @@ A modern React-based application that provides comprehensive resume analysis usi
 - **npm** (comes with Node.js)
 - **Google Gemini API Key** ([Get from Google AI Studio](https://makersuite.google.com/))
 
-### **Setup Instructions**
+### **Quick Start (Recommended)**
 
 1. **Clone the repository:**
 ```bash
@@ -104,18 +99,58 @@ git clone https://github.com/muhammadnavas/AI-Resume-Analyzer.git
 cd AI-Resume-Analyzer
 ```
 
-2. **Install dependencies:**
+2. **Setup project and dependencies:**
+```bash
+npm run setup
+```
+
+3. **Start both frontend and backend:**
+```bash
+npm run dev
+```
+
+4. **Open your browser:**
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:5000`
+
+### **Manual Setup (Alternative)**
+
+1. **Install frontend dependencies:**
 ```bash
 npm install
 ```
 
-3. **Start the development server:**
+2. **Install backend dependencies:**
+```bash
+npm run backend:install
+```
+
+3. **Start frontend only:**
 ```bash
 npm start
 ```
 
-4. **Open your browser:**
-Navigate to `http://localhost:3000`
+4. **Start backend only (separate terminal):**
+```bash
+npm run backend:dev
+```
+
+### **Backend Configuration**
+
+The backend server provides faster, more reliable document processing:
+
+1. **Backend Features:**
+   - ✅ Eliminates browser memory issues with large files
+   - ✅ Faster PDF/DOCX processing on server
+   - ✅ Handles files up to 50MB (vs 10MB browser limit)
+   - ✅ Automatic fallback to frontend if server unavailable
+
+2. **Backend Environment (Optional):**
+```bash
+cd backend
+cp .env.example .env
+# Edit .env if needed (defaults work for local development)
+```
 
 <br />
 
@@ -227,9 +262,14 @@ If environment variables are not available, the application supports local stora
 
 ```
 AI-Resume-Analyzer/
-├── public/                    # Static assets and index.html
+├── backend/                  # Express.js API server
+│   ├── server.js            # Main server file with document processing
+│   ├── package.json         # Backend dependencies
+│   ├── .env.example         # Backend environment template
+│   └── README.md            # Backend documentation
+├── public/                  # Static assets and index.html
 ├── src/
-│   ├── components/           # Reusable React components
+│   ├── components/          # Reusable React components
 │   │   ├── Header.js        # Main navigation header
 │   │   ├── Sidebar.js       # Dashboard sidebar navigation
 │   │   ├── FileUpload.js    # Drag & drop file upload
@@ -241,16 +281,17 @@ AI-Resume-Analyzer/
 │   │   └── ...
 │   ├── services/            # Business logic and API integration
 │   │   ├── resumeAnalyzer.js # Google Gemini AI integration
-│   │   ├── documentProcessor.js # PDF/DOCX text extraction
+│   │   ├── documentProcessor.js # Frontend PDF/DOCX processing
+│   │   ├── backendDocumentProcessor.js # Backend API client
 │   │   ├── realJobSearchService.js # Demo job search data
 │   │   └── ...
 │   ├── context/             # React context providers
 │   │   └── ApiKeyContext.js # API key state management
-│   ├── App.js              # Main application component
-│   └── index.js            # Application entry point
-├── package.json            # Project dependencies and scripts
-├── tailwind.config.js      # Tailwind CSS configuration
-└── README.md              # Project documentation
+│   ├── App.js               # Main application component
+│   └── index.js             # Application entry point
+├── package.json             # Project dependencies and scripts
+├── tailwind.config.js       # Tailwind CSS configuration
+└── README.md                # Project documentation
 ```
 
 <br />

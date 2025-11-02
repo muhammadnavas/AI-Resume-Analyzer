@@ -1,0 +1,25 @@
+{
+  "name": "ai-resume-analyzer-backend",
+  "version": "1.0.0",
+  "description": "Backend API for AI Resume Analyzer document processing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js --watch server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "keywords": ["resume", "analyzer", "document", "processing", "api"],
+  "author": "Your Name",
+  "license": "MIT"
+}
